@@ -3,47 +3,76 @@ name: Build Product Costing APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Download repository files
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Step 2: Install Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
+      # Step 3: Setup Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-35
-            build-tools;35.0.0
 
+      # Step 4: Accept SDK licenses
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
+      # Step 5: Install required Android SDK packages
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      # Step 6: Setup Gradle
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
-      - name: Extract app project
+      # Step 7: Check and extract project ZIP
+      - name: Extract Android project
         run: |
-          unzip product_costing_mobile_apk_builder.zip -d project
+          ls -la
+          test -f product_costing_mobile_apk_builder.zip
+          unzip -o product_costing_mobile_apk_builder.zip -d project
+          ls -la project
 
-      - name: Build APK
-        run: gradle -p project assembleDebug
+      # Step 8: Build APK
+      - name: Build Debug APK
+        run: |
+          gradle -p project assembleDebug
 
-      - name: Upload APK
+      # Step 9: Verify APK exists
+      - name: Verify APK
+        run: |
+          test -f project/app/build/outputs/apk/debug/app-debug.apk
+          ls -lh project/app/build/outputs/apk/debug/app-debug.apk
+
+      # Step 10: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: product-costing-apk
           path: project/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
